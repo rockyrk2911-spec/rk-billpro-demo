@@ -19,6 +19,10 @@ import {
   X,
   CheckCircle2,
   AlertCircle,
+  AlertTriangle,
+  ShoppingCart,
+  Package,
+  CheckCheck,
 } from 'lucide-react'
 
 import {
@@ -38,18 +42,28 @@ import {
 } from '../context/BackupContext'
 
 export default function Topbar() {
-  const navigate =
-    useNavigate()
+  const navigate = useNavigate()
 
   const [
     connectionPanelOpen,
     setConnectionPanelOpen,
   ] = useState(false)
 
+  const [
+    notificationOpen,
+    setNotificationOpen,
+  ] = useState(false)
+
+  const [
+    notificationsRead,
+    setNotificationsRead,
+  ] = useState(false)
+
   const connectionPanelRef =
-    useRef<HTMLDivElement | null>(
-      null
-    )
+    useRef<HTMLDivElement | null>(null)
+
+  const notificationRef =
+    useRef<HTMLDivElement | null>(null)
 
   /* =========================================
      BRANCH
@@ -83,7 +97,7 @@ export default function Topbar() {
   } = useBackup()
 
   /* =========================================
-     OWNER INITIALS
+     OWNER
   ========================================= */
 
   const ownerInitials =
@@ -92,17 +106,12 @@ export default function Topbar() {
       .split(' ')
       .filter(Boolean)
       .slice(0, 2)
-      .map(
-        (word) =>
-          word.charAt(0)
+      .map((word) =>
+        word.charAt(0)
       )
       .join('')
       .toUpperCase() ||
     'RK'
-
-  /* =========================================
-     OWNER NAME
-  ========================================= */
 
   const ownerName =
     businessProfile
@@ -125,71 +134,46 @@ export default function Topbar() {
     ''
 
   /* =========================================
-     CONNECTION CLASS
+     CONNECTION
   ========================================= */
 
   const connectionClass =
-    connectionStatus ===
-    'Offline'
+    connectionStatus === 'Offline'
       ? 'offline'
-      : syncStatus ===
-          'Syncing'
+      : syncStatus === 'Syncing'
         ? 'syncing'
-        : syncStatus ===
-            'Pending'
+        : syncStatus === 'Pending'
           ? 'pending'
           : 'online'
 
-  /* =========================================
-     CONNECTION LABEL
-  ========================================= */
-
   function getConnectionLabel() {
-    if (
-      connectionStatus ===
-      'Offline'
-    ) {
-      if (
-        pendingChanges > 0
-      ) {
+    if (connectionStatus === 'Offline') {
+      if (pendingChanges > 0) {
         return `Offline • ${pendingChanges} pending`
       }
 
       return 'Offline • Billing continues'
     }
 
-    if (
-      syncStatus ===
-      'Syncing'
-    ) {
+    if (syncStatus === 'Syncing') {
       return 'Syncing...'
     }
 
-    if (
-      pendingChanges > 0
-    ) {
+    if (pendingChanges > 0) {
       return `Online • ${pendingChanges} pending`
     }
 
     return 'Online • Synced'
   }
 
-  /* =========================================
-     FORMAT LAST SYNC
-  ========================================= */
-
   function formatLastSync() {
-    if (
-      !backupSettings
-        .lastSyncAt
-    ) {
+    if (!backupSettings.lastSyncAt) {
       return 'Not synced yet'
     }
 
     const date =
       new Date(
-        backupSettings
-          .lastSyncAt
+        backupSettings.lastSyncAt
       )
 
     if (
@@ -212,23 +196,16 @@ export default function Topbar() {
   }
 
   /* =========================================
-     PENDING TYPE COUNTS
+     PENDING TYPES
   ========================================= */
 
   const pendingTypeCounts =
     pendingItems.reduce<
       Record<string, number>
     >(
-      (
-        counts,
-        item
-      ) => {
+      (counts, item) => {
         counts[item.type] =
-          (
-            counts[
-              item.type
-            ] ?? 0
-          ) + 1
+          (counts[item.type] ?? 0) + 1
 
         return counts
       },
@@ -236,30 +213,32 @@ export default function Topbar() {
     )
 
   /* =========================================
-     CLOSE PANEL ON OUTSIDE CLICK
+     OUTSIDE CLICK
   ========================================= */
 
   useEffect(() => {
     function handleOutsideClick(
       event: MouseEvent
     ) {
+      const target =
+        event.target as Node
+
       if (
-        !connectionPanelRef
-          .current
+        connectionPanelRef.current &&
+        !connectionPanelRef.current.contains(
+          target
+        )
       ) {
-        return
+        setConnectionPanelOpen(false)
       }
 
       if (
-        !connectionPanelRef
-          .current
-          .contains(
-            event.target as Node
-          )
-      ) {
-        setConnectionPanelOpen(
-          false
+        notificationRef.current &&
+        !notificationRef.current.contains(
+          target
         )
+      ) {
+        setNotificationOpen(false)
       }
     }
 
@@ -277,51 +256,32 @@ export default function Topbar() {
   }, [])
 
   /* =========================================
-     WORK OFFLINE
+     CONNECTION ACTIONS
   ========================================= */
 
   function handleGoOffline() {
-    if (
-      syncStatus ===
-      'Syncing'
-    ) {
+    if (syncStatus === 'Syncing') {
       return
     }
 
     goOffline()
 
-    setConnectionPanelOpen(
-      false
-    )
+    setConnectionPanelOpen(false)
   }
 
-  /* =========================================
-     GO ONLINE
-  ========================================= */
-
   async function handleGoOnline() {
-    if (
-      syncStatus ===
-      'Syncing'
-    ) {
+    if (syncStatus === 'Syncing') {
       return
     }
 
     await goOnline()
   }
 
-  /* =========================================
-     MANUAL SYNC
-  ========================================= */
-
   async function handleSyncNow() {
     if (
-      connectionStatus !==
-        'Online' ||
-      syncStatus ===
-        'Syncing' ||
-      !backupSettings
-        .syncEnabled
+      connectionStatus !== 'Online' ||
+      syncStatus === 'Syncing' ||
+      !backupSettings.syncEnabled
     ) {
       return
     }
@@ -329,36 +289,45 @@ export default function Topbar() {
     await simulateSync()
   }
 
+  /* =========================================
+     NOTIFICATIONS
+  ========================================= */
+
+  const notificationCount =
+    notificationsRead ? 0 : 3
+
+  function toggleNotifications() {
+    setConnectionPanelOpen(false)
+
+    setNotificationOpen(
+      (current) => !current
+    )
+  }
+
+  function markAllNotificationsRead() {
+    setNotificationsRead(true)
+  }
+
   return (
     <header className="topbar">
 
-      {/* =====================================
-          GLOBAL SEARCH
-      ====================================== */}
+      {/* SEARCH */}
 
       <div className="topbar-search">
-
-        <Search
-          size={19}
-        />
+        <Search size={19} />
 
         <input
           type="text"
           placeholder="Search products, invoices, customers..."
           aria-label="Global search"
         />
-
       </div>
 
-      {/* =====================================
-          RIGHT ACTIONS
-      ====================================== */}
+      {/* ACTIONS */}
 
       <div className="topbar-actions">
 
-        {/* ===================================
-            CURRENT BRANCH
-        ==================================== */}
+        {/* BRANCH */}
 
         <button
           type="button"
@@ -370,14 +339,12 @@ export default function Topbar() {
           }
           title="Manage branches"
         >
-
           <MapPin
             size={15}
             className="topbar-branch-icon"
           />
 
           <div className="topbar-branch-content">
-
             <span className="branch-label">
               Branch
             </span>
@@ -391,63 +358,44 @@ export default function Topbar() {
                 {branchLocation}
               </small>
             )}
-
           </div>
 
-          <ChevronDown
-            size={16}
-          />
-
+          <ChevronDown size={16} />
         </button>
 
-        {/* ===================================
-            CONNECTION
-        ==================================== */}
+        {/* CONNECTION */}
 
         <div
           className="topbar-connection-wrapper"
-          ref={
-            connectionPanelRef
-          }
+          ref={connectionPanelRef}
         >
-
           <button
             type="button"
             className={`topbar-connection ${connectionClass}`}
-            onClick={() =>
+            onClick={() => {
+              setNotificationOpen(false)
+
               setConnectionPanelOpen(
-                (current) =>
-                  !current
+                (current) => !current
               )
-            }
+            }}
             aria-expanded={
               connectionPanelOpen
             }
             aria-label="Open connection status"
             title="Connection and synchronization"
           >
-
             {connectionStatus ===
             'Offline' ? (
-
-              <WifiOff
-                size={16}
-              />
-
+              <WifiOff size={16} />
             ) : syncStatus ===
               'Syncing' ? (
-
               <RefreshCw
                 size={16}
                 className="sync-spin"
               />
-
             ) : (
-
-              <Wifi
-                size={16}
-              />
-
+              <Wifi size={16} />
             )}
 
             <span>
@@ -462,23 +410,13 @@ export default function Topbar() {
                   : 'connection-chevron'
               }
             />
-
           </button>
 
-          {/* =================================
-              CONNECTION POPUP
-          ================================== */}
-
           {connectionPanelOpen && (
-
             <div className="connection-panel">
 
-              {/* HEADER */}
-
               <div className="connection-panel-header">
-
                 <div>
-
                   <span className="connection-panel-eyebrow">
                     RK BillPro
                   </span>
@@ -486,7 +424,6 @@ export default function Topbar() {
                   <h3>
                     Connection Status
                   </h3>
-
                 </div>
 
                 <button
@@ -499,57 +436,33 @@ export default function Topbar() {
                   }
                   aria-label="Close connection panel"
                 >
-                  <X
-                    size={18}
-                  />
+                  <X size={18} />
                 </button>
-
               </div>
-
-              {/* STATUS */}
 
               <div
                 className={`connection-status-card ${connectionClass}`}
               >
-
                 <div className="connection-status-icon">
-
                   {connectionStatus ===
                   'Offline' ? (
-
-                    <CloudOff
-                      size={22}
-                    />
-
+                    <CloudOff size={22} />
                   ) : syncStatus ===
                     'Syncing' ? (
-
                     <RefreshCw
                       size={22}
                       className="sync-spin"
                     />
-
                   ) : syncStatus ===
                     'Pending' ? (
-
-                    <AlertCircle
-                      size={22}
-                    />
-
+                    <AlertCircle size={22} />
                   ) : (
-
-                    <CheckCircle2
-                      size={22}
-                    />
-
+                    <CheckCircle2 size={22} />
                   )}
-
                 </div>
 
                 <div className="connection-status-copy">
-
                   <strong>
-
                     {connectionStatus ===
                     'Offline'
                       ? 'Working Offline'
@@ -560,19 +473,16 @@ export default function Topbar() {
                             'Pending'
                           ? 'Sync Pending'
                           : 'Online & Synced'}
-
                   </strong>
 
                   <span>
-
                     {connectionStatus ===
                     'Offline'
                       ? 'Billing and local operations continue normally.'
                       : syncStatus ===
                           'Syncing'
                         ? `${pendingChanges} ${
-                            pendingChanges ===
-                            1
+                            pendingChanges === 1
                               ? 'change is'
                               : 'changes are'
                           } being synchronized.`
@@ -580,23 +490,14 @@ export default function Topbar() {
                             'Pending'
                           ? 'Local changes are waiting to synchronize.'
                           : 'All local data is up to date.'}
-
                   </span>
-
                 </div>
-
               </div>
 
-              {/* INFORMATION */}
-
               <div className="connection-info-grid">
-
                 <div className="connection-info-item">
-
                   <div className="connection-info-icon">
-                    <Database
-                      size={17}
-                    />
+                    <Database size={17} />
                   </div>
 
                   <div>
@@ -608,15 +509,11 @@ export default function Topbar() {
                       {pendingChanges}
                     </strong>
                   </div>
-
                 </div>
 
                 <div className="connection-info-item">
-
                   <div className="connection-info-icon">
-                    <Clock3
-                      size={17}
-                    />
+                    <Clock3 size={17} />
                   </div>
 
                   <div>
@@ -628,20 +525,12 @@ export default function Topbar() {
                       {formatLastSync()}
                     </strong>
                   </div>
-
                 </div>
-
               </div>
 
-              {/* PENDING SUMMARY */}
-
-              {pendingChanges >
-                0 && (
-
+              {pendingChanges > 0 && (
                 <div className="connection-pending-summary">
-
                   <div className="connection-section-title">
-
                     <span>
                       Pending Operations
                     </span>
@@ -649,26 +538,17 @@ export default function Topbar() {
                     <strong>
                       {pendingChanges}
                     </strong>
-
                   </div>
 
                   <div className="connection-pending-types">
-
                     {Object.entries(
                       pendingTypeCounts
                     ).map(
-                      ([
-                        type,
-                        count,
-                      ]) => (
-
+                      ([type, count]) => (
                         <div
                           className="connection-pending-type"
-                          key={
-                            type
-                          }
+                          key={type}
                         >
-
                           <span>
                             {type}
                           </span>
@@ -676,44 +556,27 @@ export default function Topbar() {
                           <strong>
                             {count}
                           </strong>
-
                         </div>
-
                       )
                     )}
-
                   </div>
-
                 </div>
-
               )}
-
-              {/* SYNC DISABLED */}
 
               {!backupSettings
                 .syncEnabled && (
-
                 <div className="connection-sync-warning">
-
-                  <AlertCircle
-                    size={17}
-                  />
+                  <AlertCircle size={17} />
 
                   <span>
                     Cloud sync is disabled in Backup & Sync settings.
                   </span>
-
                 </div>
-
               )}
 
-              {/* ACTIONS */}
-
               <div className="connection-panel-actions">
-
                 {connectionStatus ===
                 'Offline' ? (
-
                   <button
                     type="button"
                     className="connection-primary-button"
@@ -725,36 +588,23 @@ export default function Topbar() {
                       'Syncing'
                     }
                   >
-
                     {syncStatus ===
                     'Syncing' ? (
-
                       <RefreshCw
                         size={17}
                         className="sync-spin"
                       />
-
                     ) : (
-
-                      <Cloud
-                        size={17}
-                      />
-
+                      <Cloud size={17} />
                     )}
 
-                    {pendingChanges >
-                    0
+                    {pendingChanges > 0
                       ? 'Go Online & Sync'
                       : 'Go Online'}
-
                   </button>
-
                 ) : (
-
                   <>
-                    {pendingChanges >
-                      0 && (
-
+                    {pendingChanges > 0 && (
                       <button
                         type="button"
                         className="connection-primary-button"
@@ -768,7 +618,6 @@ export default function Topbar() {
                             .syncEnabled
                         }
                       >
-
                         <RefreshCw
                           size={17}
                           className={
@@ -783,9 +632,7 @@ export default function Topbar() {
                         'Syncing'
                           ? 'Syncing...'
                           : 'Sync Now'}
-
                       </button>
-
                     )}
 
                     <button
@@ -799,22 +646,12 @@ export default function Topbar() {
                         'Syncing'
                       }
                     >
-
-                      <WifiOff
-                        size={17}
-                      />
-
+                      <WifiOff size={17} />
                       Work Offline
-
                     </button>
-
                   </>
-
                 )}
-
               </div>
-
-              {/* SETTINGS */}
 
               <button
                 type="button"
@@ -831,35 +668,203 @@ export default function Topbar() {
               >
                 Manage Backup & Sync
               </button>
-
             </div>
-
           )}
-
         </div>
 
-        {/* ===================================
+        {/* =====================================
             NOTIFICATIONS
-        ==================================== */}
+        ====================================== */}
 
-        <button
-          type="button"
-          className="notification-button"
-          aria-label="Notifications"
-          title="Notifications"
+        <div
+          className="topbar-notification-wrapper"
+          ref={notificationRef}
         >
+          <button
+            type="button"
+            className={
+              notificationOpen
+                ? 'notification-button active'
+                : 'notification-button'
+            }
+            onClick={
+              toggleNotifications
+            }
+            aria-label="Notifications"
+            aria-expanded={
+              notificationOpen
+            }
+            title="Notifications"
+          >
+            <Bell size={19} />
 
-          <Bell
-            size={20}
-          />
+            {notificationCount > 0 && (
+              <span className="notification-badge">
+                {notificationCount}
+              </span>
+            )}
+          </button>
 
-          <span className="notification-dot" />
+          {notificationOpen && (
+            <div className="notification-panel">
 
-        </button>
+              <div className="notification-panel-header">
+                <div>
+                  <h3>
+                    Notifications
+                  </h3>
 
-        {/* ===================================
-            USER PROFILE
-        ==================================== */}
+                  <p>
+                    Recent RK BillPro activity
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  className="notification-close"
+                  onClick={() =>
+                    setNotificationOpen(
+                      false
+                    )
+                  }
+                  aria-label="Close notifications"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="notification-actions">
+                <span>
+                  {notificationCount > 0
+                    ? `${notificationCount} New`
+                    : 'All caught up'}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={
+                    markAllNotificationsRead
+                  }
+                  disabled={
+                    notificationsRead
+                  }
+                >
+                  <CheckCheck size={15} />
+                  Mark all read
+                </button>
+              </div>
+
+              <div className="notification-list">
+
+                <div
+                  className={
+                    notificationsRead
+                      ? 'notification-item'
+                      : 'notification-item unread'
+                  }
+                >
+                  <div className="notification-item-icon warning">
+                    <AlertTriangle
+                      size={18}
+                    />
+                  </div>
+
+                  <div className="notification-item-content">
+                    <strong>
+                      Low Stock Alert
+                    </strong>
+
+                    <p>
+                      Some products have reached
+                      their minimum stock level.
+                    </p>
+
+                    <span>
+                      Just now
+                    </span>
+                  </div>
+
+                  {!notificationsRead && (
+                    <span className="notification-unread-dot" />
+                  )}
+                </div>
+
+                <div
+                  className={
+                    notificationsRead
+                      ? 'notification-item'
+                      : 'notification-item unread'
+                  }
+                >
+                  <div className="notification-item-icon sale">
+                    <ShoppingCart
+                      size={18}
+                    />
+                  </div>
+
+                  <div className="notification-item-content">
+                    <strong>
+                      Sale Completed
+                    </strong>
+
+                    <p>
+                      A billing transaction was
+                      completed successfully.
+                    </p>
+
+                    <span>
+                      10 minutes ago
+                    </span>
+                  </div>
+
+                  {!notificationsRead && (
+                    <span className="notification-unread-dot" />
+                  )}
+                </div>
+
+                <div
+                  className={
+                    notificationsRead
+                      ? 'notification-item'
+                      : 'notification-item unread'
+                  }
+                >
+                  <div className="notification-item-icon stock">
+                    <Package size={18} />
+                  </div>
+
+                  <div className="notification-item-content">
+                    <strong>
+                      Inventory Updated
+                    </strong>
+
+                    <p>
+                      Product inventory was updated
+                      after a purchase.
+                    </p>
+
+                    <span>
+                      1 hour ago
+                    </span>
+                  </div>
+
+                  {!notificationsRead && (
+                    <span className="notification-unread-dot" />
+                  )}
+                </div>
+
+              </div>
+
+              <div className="notification-panel-footer">
+                <Bell size={14} />
+                Demo notifications
+              </div>
+
+            </div>
+          )}
+        </div>
+
+        {/* USER PROFILE */}
 
         <button
           type="button"
@@ -871,13 +876,11 @@ export default function Topbar() {
           }
           title="Business profile"
         >
-
           <div className="user-avatar">
             {ownerInitials}
           </div>
 
           <div className="user-info">
-
             <strong>
               {ownerName}
             </strong>
@@ -885,13 +888,9 @@ export default function Topbar() {
             <span>
               Owner
             </span>
-
           </div>
 
-          <ChevronDown
-            size={16}
-          />
-
+          <ChevronDown size={16} />
         </button>
 
       </div>
